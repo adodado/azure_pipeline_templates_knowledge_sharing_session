@@ -1,0 +1,121 @@
+# ===============================
+# AUTHOR          : Admir Cosic
+# PURPOSE         : Run tests and collect code coverage reports
+# CREATED         : 2022-12-06
+# ===============================
+
+parameters:
+  # (Optional) Accepts 'True' or 'False' and indicates whether to measure code coverage on the source code
+  - name: publishCodeCoverage
+    type: string
+    default: "True"
+
+  # (Optional) Accepts 'True' or 'False' and indicates whether to publish code to artifact
+  - name: publishTestBuildAsArtifact
+    type: string
+    default: "False"
+
+  # Represents a list of projects that contain tests to run
+  # Schema:
+  # - projects         : represents the path to one (or more) project(s) that contain tests
+  # - excludePath      : path to one (or more) project(s) that contain tests that won't be executed (needed mostly when the main path to projects includes wildcards or references to items that must be excluded from tests execution)
+  # - workingDirectory : working directory
+  # - env              : custom environment variables that will be injected in the test project
+  - name: tests
+    type: object
+    default: []
+
+  - name: continueOnError
+    type: boolean
+    default: false
+
+steps:
+  - template: pipeline-logging-step-template.yml
+    parameters:
+      taskDisplayName: Execution information => Test
+      message: "ContinueOnError: ${{ parameters.continueOnError }} - PublishTestBuildAsArtifact: ${{ parameters.publishTestBuildAsArtifact }} - PublishCodeCoverage: ${{ parameters.publishCodeCoverage }}"
+
+  # Execute unit tests only if a list of project has been provided
+  - ${{ if ne(length(parameters.tests), 0) }}:
+      - ${{ each test in parameters.tests }}:
+          - task: DotNetCoreCLI@2
+            displayName: "Run tests ${{ test.projects }}"
+            continueOnError: ${{ parameters.continueOnError }}
+            inputs:
+              command: "test"
+              projects: ${{ test.projects }}
+              publishTestResults: true
+              ${{ if eq(parameters.publishCodeCoverage,'False') }}:
+                arguments: '--logger "trx"'
+              ${{ else }}:
+                arguments: '--logger "trx" --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura /p:Exclude="${{ test.excludePath }}"'
+              workingDirectory: ${{ test.workingDirectory }}
+            ${{ if test.env }}:
+              env: ${{ test.env }}
+
+          - task: CmdLine@2
+            displayName: List Agent.TempDirectory files
+            inputs:
+              script: |
+                echo "(Agent.TempDirectory):" 
+                tree $(Agent.TempDirectory)
+
+          - ${{ if eq(parameters.publishTestBuildAsArtifact,'True') }}:
+              - task: DotNetCoreCLI@2
+                displayName: "Build"
+                continueOnError: ${{ parameters.continueOnError }}
+                inputs:
+                  command: "publish"
+                  publishWebProjects: false
+                  projects: ${{ test.projects }}
+                  arguments: "--no-restore -o $(Build.ArtifactStagingDirectory)/test-results"
+                  zipAfterPublish: true
+                  modifyOutputPath: true
+
+              - task: PublishBuildArtifacts@1
+                displayName: "Publish build artifact"
+                continueOnError: true
+                inputs:
+                  PathtoPublish: "$(Build.ArtifactStagingDirectory)/test-results"
+                  ArtifactName: test-projects
+
+          # After all the tests have been executed, then we can generate a code coverage report
+          - ${{ if ne(parameters.publishCodeCoverage,'False') }}:
+              # Publish cobertura code coverage results as part of the summary of the build
+              - task: PublishCodeCoverageResults@1
+                displayName: "Publish Code Coverage summary"
+                continueOnError: true
+                inputs:
+                  codeCoverageTool: "Cobertura"
+                  summaryFileLocation: "$(Agent.TempDirectory)/**/coverage.cobertura.xml"
+                  failIfCoverageEmpty: false
+
+              # Install ReportGenerator
+              - task: CmdLine@2
+                inputs:
+                  script: "dotnet tool install --global dotnet-reportgenerator-globaltool --version 4.5.8"
+                displayName: "Install ReportGenerator tool"
+                continueOnError: true
+
+              # Create the feed package name
+              # This is necessary because we have hard limitations on the names for Azure Artifacts
+              - pwsh: |
+                  $feedPackageName = "code-coverage-$env:REPO_NAME-$env:BRANCH_NAME".ToLower()
+                  Write-Host "##vso[task.setvariable variable=feedPackageName]$feedPackageName"
+                displayName: "Get code coverage history package name"
+                env:
+                  REPO_NAME: $(Build.Repository.Name)
+                  BRANCH_NAME: $(Build.SourceBranchName)
+
+              # Generate code coverage report
+              - script: 'reportgenerator -reports:$(Agent.TempDirectory)/**/coverage.cobertura.xml -targetdir:$(Pipeline.Workspace)/CoverageResults -historydir:$(Build.ArtifactStagingDirectory)/test-result-history -reporttypes:"HtmlInline_AzurePipelines;Cobertura;HtmlSummary" -tag:$(Build.BuildNumber) -title:"Code coverage for $(Build.Repository.Name) on $(Build.SourceBranchName)" -verbosity:Verbose'
+                displayName: Create Code coverage report
+                continueOnError: true
+
+              # Publish code coverage results as part of the summary of the build
+              - task: PublishBuildArtifacts@1
+                displayName: "Publish reportgenerator artifact"
+                continueOnError: true
+                inputs:
+                  PathtoPublish: "$(Pipeline.Workspace)/CoverageResults"
+                  ArtifactName: coverageResults

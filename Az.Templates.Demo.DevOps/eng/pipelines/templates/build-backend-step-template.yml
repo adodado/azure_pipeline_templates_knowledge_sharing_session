@@ -1,0 +1,23 @@
+# ===============================
+# AUTHOR          : Admir Cosic
+# PURPOSE         : Pipeline for building project.
+# CREATED         : 2022-12-06
+# ===============================
+
+parameters:
+  # The buildConfiguration
+  - name: buildConfiguration
+    type: string
+
+  # (Optional) Represents the 'displayName' attribute of the task. It will default to 'Build solution', but anything else can be specified.
+  - name: taskDisplayName
+    type: string
+    default: "Build solution"
+
+steps:
+  - task: DotNetCoreCLI@2
+    displayName: ${{ parameters.taskDisplayName }}
+    inputs:
+      command: "build"
+      projects: "**/*.csproj"
+      arguments: "--configuration ${{ parameters.buildConfiguration }}"

@@ -1,0 +1,38 @@
+parameters: 
+- name: useDotNetVersion
+  type: string
+  default: 6.x
+  
+  # Project definition
+- name: project
+  type: object
+  default: {}
+
+jobs:
+  - job: runTests
+    displayName: Run tests
+    steps:
+        # Install specific dotnet version
+      - task: UseDotNet@2
+        displayName: Use dotnet ${{ parameters.useDotNetVersion }}
+        continueOnError: ${{ parameters.project.continueOnTestRunError }}
+        inputs:
+          packageType: "sdk"
+          version: ${{ parameters.useDotNetVersion }}
+          installationPath: "$(Agent.ToolsDirectory)/dotnet"
+      - task: NuGetToolInstaller@1
+        inputs:
+          versionSpec: ">=6.1.0"
+        # Restores NuGet pacakges
+      - task: NuGetRestore@1
+        inputs:
+          solution: '**/*.sln' # string. Required. Path to solution, packages.config, or project.json. Default: **/*.sln.
+          selectOrConfig: 'select' # 'select' | 'config'. Required. Feeds to use. Default: select.
+            
+        # Runs unit tests and publishes code coverage
+      - template: run-tests-step-template.yml
+        parameters:
+          continueOnError: ${{ parameters.project.continueOnTestRunError }}
+          publishCodeCoverage: ${{ parameters.project.publishCodeCoverage }}
+          tests: ${{ parameters.project.tests }}
+          publishTestBuildAsArtifact: ${{parameters.project.publishTestBuildAsArtifact}}

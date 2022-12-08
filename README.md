@@ -1,1 +1,0 @@
-# azure_pipeline_templates_knowledge_sharing_session

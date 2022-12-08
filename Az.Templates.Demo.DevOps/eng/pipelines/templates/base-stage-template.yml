@@ -1,0 +1,70 @@
+# ===============================
+# AUTHOR          : Admir Cosic
+# PURPOSE         : Base pipeline for building and publishing app and bicep templates.
+#                   Standard version, in the future we will probably need to add more parameters for customization
+# CREATED         : 2022-12-06
+# ===============================
+
+parameters:
+
+  # Represents if the pipeline should run the pre run wait job.
+  - name: executePreRunWaitJob
+    type: boolean
+    default: true
+
+  # Project definition
+  # - name: job name, must be written with alphanumeric and _ only
+  #   arguments: optional arguments for build
+  #   publishTestBuildAsArtifact: true/false publish test artifacts
+  #   publishBuildAsArtifact: true/false publish build artifacts
+  #   publishCodeCoverage: true/false avoid to publish the code coverage
+  #   continueOnTestRunError: true/false continue on errors
+  #   tests:
+  #   - projects: path to test project based on working directory or if omitted '/'
+  #     workingDirectory: working directory
+  - name: project
+    type: object
+    default: {}
+
+  # Represents the dotnet version that should be used in the pipeline
+  - name: useDotNetVersion
+    type: string
+    default: 6.x
+
+variables:
+  # It contains pipeline variables
+  - template: ../libs/pipeline-variables.yml
+
+stages:
+  - stage: preRun
+    displayName: Warmup
+    jobs:
+      - ${{ if eq(parameters.executePreRunWaitJob,'True') }}:
+          - job: preRunWaitJob
+            displayName: Wait for possible skip
+            steps:
+              - checkout: none
+              - bash: sleep 30s
+                displayName: "Wait 30sec"
+  - stage: runTests
+    displayName: Test
+    jobs:
+      - template: run-tests-job-template.yml
+        parameters:
+          project: ${{parameters.project}}
+
+  - stage: buildApp
+    displayName: Build
+    jobs:
+      - job: buildPrep
+        displayName: Build preparation
+        steps:
+          - template: pipeline-logging-step-template.yml
+            parameters:
+              taskDisplayName: Execution information => Build
+              message: "BuildConfiguration: ${{variables['buildConfiguration']}} - Tag: ${{variables['customTag']}} - ProjectName: ${{ parameters.project.name }}"
+
+          # Builds project step
+          - template: build-backend-step-template.yml
+            parameters:
+              buildConfiguration: ${{variables['buildConfiguration']}}

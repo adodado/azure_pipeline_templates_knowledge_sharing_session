@@ -1,0 +1,26 @@
+name: '$(date:yyyy).$(date:MM).$(date:dd)$(Rev:.rr)'
+
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+resources:
+  repositories:
+    - repository: utilities
+      type: git
+      name: Az.Templates.Demo.DevOps
+      ref: refs/heads/master
+
+extends:
+  template: eng/pipelines/templates/base-stage-template.yml@utilities
+  parameters:
+    executePreRunWaitJob: true
+    project:
+      name: Demo.API
+      publishTestBuildAsArtifact: false
+      publishCodeCoverage: true
+      continueOnTestRunError: false
+      tests:
+      - projects: '**/*.UnitTest.csproj'
+        workingDirectory: $(System.DefaultWorkingDirectory)/test

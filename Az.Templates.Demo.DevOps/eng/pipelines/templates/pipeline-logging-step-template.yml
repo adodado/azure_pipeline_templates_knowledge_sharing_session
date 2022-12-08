@@ -1,0 +1,25 @@
+# ===============================
+# AUTHOR          : Admir Cosic
+# PURPOSE         : Print custom logging on the pipeline
+# CREATED         : 2022-12-06
+# ===============================
+
+parameters:
+  # Represents the message to be printed out in the log
+  - name: message
+    type: string
+    default: ""
+
+  # (Optional) Represents the 'displayName' attribute of the task. It will default to 'Log', but anything else can be specified.
+  - name: taskDisplayName
+    type: string
+    default: "Log"
+
+steps:
+  - bash: |
+      IFS='|' read -r -a array <<< "${{ parameters.message }}"
+      for element in "${array[@]}"
+      do
+        echo $element | sed 's/ *$//g'
+      done
+    displayName: ${{ parameters.taskDisplayName }}

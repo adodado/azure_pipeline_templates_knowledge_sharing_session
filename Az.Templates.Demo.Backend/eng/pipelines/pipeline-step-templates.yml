@@ -1,0 +1,24 @@
+name: '$(date:yyyy).$(date:MM).$(date:dd)$(Rev:.rr)'
+
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+resources:
+  repositories:
+    - repository: utilities
+      type: git
+      name: Az.Templates.Demo.DevOps
+      ref: refs/heads/master
+jobs:
+  - job: demoStepTemplate
+    displayName: Step template
+    steps:
+      - template: eng/pipelines/templates/pipeline-logging-step-template.yml@utilities
+        parameters:
+          taskDisplayName: Template step
+          message: "This is the template step log message!"
+
+      - script: echo This step runs after the template step
+        displayName: "Pipeline step"

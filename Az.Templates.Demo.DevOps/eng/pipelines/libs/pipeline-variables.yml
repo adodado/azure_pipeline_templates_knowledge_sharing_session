@@ -1,0 +1,28 @@
+# ===============================
+# AUTHOR          : Admir Cosic
+# PURPOSE         : Standard pipeline variables
+# CREATED         : 2022-12-06
+# ===============================
+
+variables:
+# To opt-out of data collection
+- name: DOTNET_CLI_TELEMETRY_OPTOUT
+  value: true
+# To prevent caching of packages on the build machine
+- name: DOTNET_SKIP_FIRST_TIME_EXPERIENCE
+  value: true
+# To prevent downloading the XML documentation for packages
+- name: NUGET_XMLDOC_MODE
+  value: Skip
+# To opt-out of data collection
+- name: POWERSHELL_TELEMETRY_OPTOUT
+  value: true
+# Custom tag build id
+- name: customTag
+  value: '-$(Build.BuildID)'
+# Represents the dotnet build platform, default is 'Any CPU'
+- name: buildPlatform
+  value: 'Any CPU'
+# Represents the dotnet build configuration, default is 'Release'
+- name: buildConfiguration
+  value: 'Release'
